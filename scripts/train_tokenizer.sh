@@ -6,4 +6,4 @@
 #SBATCH --time=1:00:00
 
 
-python3 bpe_tokenizer.py '/data/TinyStoriesV2-GPT4-train.txt' 'results' 10000 'tinystories'
+python3 cs336_basics/bpe_tokenizer.py 'tests/fixtures/corpus.en' 'results' 300 'tester'

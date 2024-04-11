@@ -3,6 +3,8 @@ from collections import Counter
 import os
 import sys
 import pickle
+import gc
+import json
 
 
 def train_tokenizer(input_path, vocab_size, special_tokens):
@@ -12,16 +14,30 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
         vocab[256+x] = special_tokens[x].encode('utf-8')
     #PAT = r""" *<\|endoftext\|>|'(?:[sdmt]|ll|ve|re)| \p{L}+| \p{N}+|(?:(?<!<)endoftext(?!>))|?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     PAT = r"""'(?:[sdmt]|ll|ve|re)|(?:<\|endoftext\|>)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+ *(?=<\|endoftext\|>)| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+    print("Loading corpus: ")
     with open(input_path, 'r') as f:
         corpus = f.read()
     special_tokens_regex = [re.findall(PAT, spec) for spec in special_tokens]
     longest_token = max([len(sp) for sp in special_tokens_regex])
+    print("Pretokenizing: ")
     pretokenized = re.findall(PAT, corpus)
-    pretokenized = [tuple(w.encode('utf-8')) if "<|endoftext|>" not in w else tuple([256]) if w == "<|endoftext|>" else tuple(w.split('<|endoftext|>')[0].encode('utf-8')) + tuple([256]) for w in pretokenized]
-    pretokenized_counter = Counter(pretokenized)
+    del corpus
+    gc.collect()
+    print("Counting")
+    pretokenized_counter = Counter()
+    for w in pretokenized:
+        if "<|endoftext|>" not in w:
+            encoded = w.encode('utf-8')
+        else:
+            encoded = tuple([256])
+        pretokenized_counter[encoded] += 1
+    del pretokenized
+    gc.collect()
+    """pretokenized = [tuple(w.encode('utf-8')) if "<|endoftext|>" not in w else tuple([256]) for w in pretokenized]
+    pretokenized_counter = Counter(pretokenized)"""
     pairs_counter, pairs_to_tokens = get_pairs(pretokenized_counter)
     token_splits = dict(zip(pretokenized_counter.keys(), pretokenized_counter.keys()))
-
+    print("Running stuff")
     i= 256+len(special_tokens)
     while i < vocab_size:
         new_merge = i
@@ -73,6 +89,8 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
             assert len(index_pairs) - n_merges == len(new_pairs1)
         i += 1
         del pairs_counter[merge_vocab]
+        if i % 1000 == 0:
+            print(merges)
     return vocab, merges
 
 def get_second_tuple_value(item):
@@ -101,8 +119,10 @@ if __name__=="__main__":
     special_tokens = ['<|endoftext|>']
     vocab, merges = train_tokenizer(file_path, vocab_size, special_tokens)
     #print(vocab)
-    print(merges)
-    with open(out_path + dataset + '.vocab') as f:
-        pickle.dump(vocab, f)
-    with open(out_path + dataset + '.merges') as f:
-        pickle.dump(merges, f)
+    #print(merges)
+    with open(out_path + dataset + '.vocab', 'wb') as f:
+        json.dump(vocab, f)
+    with open(out_path + dataset + '.merges', 'w') as f:
+        for byte_tuple in merges:
+            string_tuple = tuple(str(byte) for byte in byte_tuple)
+            f.write(','.join(string_tuple) + '\n')

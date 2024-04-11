@@ -6,4 +6,4 @@
 #SBATCH --time=15:00:00
 
 
-python3 -u cs336_basics/bpe_tokenizer.py '/data/TinyStoriesV2-GPT4-train.txt' 'results/' 10000 'tinystories_2'
+python3 -u cs336_basics/bpe_tokenizer.py '/data/owt_train.txt' 'results/' 32000 'owt'

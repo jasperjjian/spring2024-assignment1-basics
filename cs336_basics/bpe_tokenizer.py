@@ -10,8 +10,8 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
     vocab = {x : bytes([x]) for x in range(256)}
     for x in range(len(special_tokens)):
         vocab[256+x] = special_tokens[x].encode('utf-8')
-    #PAT = r""" *<\|endoftext\|>|'(?:[sdmt]|ll|ve|re)|\s*?\p{L}+|\s*?\p{N}+|(?:(?<!<)endoftext(?!>))|\s*?[^\s\p{L}\p{N}<]+"""
-    PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+    #PAT = r""" *<\|endoftext\|>|'(?:[sdmt]|ll|ve|re)| \p{L}+| \p{N}+|(?:(?<!<)endoftext(?!>))|?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+    PAT = r"""'(?:[sdmt]|ll|ve|re)|(?:<\|endoftext\|>)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+ *(?=<\|endoftext\|>)| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     with open(input_path, 'r') as f:
         corpus = f.read()
     special_tokens_regex = [re.findall(PAT, spec) for spec in special_tokens]
@@ -102,7 +102,7 @@ if __name__=="__main__":
     vocab, merges = train_tokenizer(file_path, vocab_size, special_tokens)
     #print(vocab)
     print(merges)
-    """with open(out_path + dataset + '.vocab') as f:
+    with open(out_path + dataset + '.vocab') as f:
         pickle.dump(vocab, f)
     with open(out_path + dataset + '.merges') as f:
-        pickle.dump(merges, f)"""
+        pickle.dump(merges, f)

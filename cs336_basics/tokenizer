@@ -1,0 +1,47 @@
+import regex as re
+from collections import Counter
+import os
+import sys
+import pickle
+
+class BPETokenizer:
+    def __init__(self, vocab, merges, special_tokens=None):
+        self.vocab = vocab
+        self.merges = merges
+        self.special_tokens = special_tokens
+        return
+    
+    def from_files(cls, vocab_filepath, merges_filepath, special_tokens=None):
+        with open(vocab_filepath, 'r') as f:
+            vocab_list = f.read()
+        with open(merges_filepath, 'r') as f:
+            merges_list = f.read()
+        return BPETokenizer(vocab_list, merges_list, special_token=special_tokens)
+    
+    def encode(self, text):
+        PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+        pretokenized = re.findall(PAT, text)
+        pretokenized = [tuple(w.encode('utf-8')) if "<|endoftext|>" not in w else tuple([256]) if w == "<|endoftext|>" else tuple(w.split('<|endoftext|>')[0].encode('utf-8')) + tuple([256]) for w in pretokenized]
+        
+        return
+    
+    def get_pairs(pretokenized_counts):
+        pair_counter = Counter()
+        pair_to_index = dict()
+
+        for i, (index, count) in enumerate(pretokenized_counts.items()):
+            index_pairs = [(index[i], index[i + 1]) for i in range(len(index) - 1)]
+            for pair in index_pairs:
+                pair_counter[pair] += count
+                if pair in pair_to_index:
+                    pair_to_index[pair] = pair_to_index[pair].union({i})
+                else:
+                    pair_to_index[pair] = {i}
+        return pair_counter, pair_to_index
+
+    def encode_iterable(self, iterable):
+
+        return
+    
+    def decode(self, ids):
+        return

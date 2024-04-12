@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from typing import IO, BinaryIO, Iterable, Optional, Type
 from cs336_basics import bpe_tokenizer
+from cs336_basics import transformer
 import numpy.typing as npt
 import torch
 
@@ -43,7 +44,10 @@ def run_positionwise_feedforward(
     # You can also manually assign the weights
     # my_ffn.w1.weight.data = weights["w1.weight"]
     # my_ffn.w2.weight.data = weights["w2.weight"]
-    raise NotImplementedError
+    ffn = transformer.FeedForward(d_model, d_ff)
+    ffn.w1.weight.data = weights["w1.weight"]
+    ffn.w2.weight.data = weights["w2.weight"]
+    return ffn(in_features)
 
 
 def run_scaled_dot_product_attention(
@@ -85,7 +89,9 @@ def run_scaled_dot_product_attention(
         with the output of running your scaled dot product attention
         implementation with the provided key, query, and value tensors.
     """
-    raise NotImplementedError
+    attention_head = transformer.Attention()
+    return attention_head(K, Q, V, mask=mask)
+    
 
 
 def run_multihead_self_attention(
@@ -331,7 +337,10 @@ def run_rmsnorm(
         FloatTensor of with the same shape as `in_features` with the output of running
         layernorm of the `in_features`.
     """
-    raise NotImplementedError
+    normlayer = transformer.RMSNorm(d_model, eps)
+    normlayer.gain = torch.nn.Parameter(weights['weight'])
+    print( normlayer.gain - torch.nn.Parameter(weights['weight']))
+    return normlayer.forward(in_features)
 
 
 def run_gelu(in_features: torch.FloatTensor) -> torch.FloatTensor:
@@ -346,7 +355,9 @@ def run_gelu(in_features: torch.FloatTensor) -> torch.FloatTensor:
         FloatTensor of with the same shape as `in_features` with the output of applying
         GELU to each element.
     """
-    raise NotImplementedError
+    gelu = transformer.Gelu()
+
+    return(gelu(in_features))
 
 
 def run_get_batch(
@@ -390,7 +401,8 @@ def run_softmax(in_features: torch.FloatTensor, dim: int) -> torch.FloatTensor:
         FloatTensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    raise NotImplementedError
+    softmax = transformer.Softmax()
+    return softmax(in_features, dim)
 
 
 def run_cross_entropy(inputs: torch.FloatTensor, targets: torch.LongTensor):

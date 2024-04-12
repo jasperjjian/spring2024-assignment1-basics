@@ -107,8 +107,9 @@ def get_pairs(pretokenized_counts):
     print("Counting Pairs")
     for k, (index, count) in enumerate(tqdm(pretokenized_counts.items())):
         index_pairs = [(index[i], index[i + 1]) for i in range(len(index) - 1)]
-        for pair in index_pairs:
-            pair_counter[pair] += count
+        index_pairs_counted = Counter({k: count * c for k, c in Counter(index_pairs).items()})
+        pair_counter += index_pairs_counted
+        for pair in index_pairs_counted.keys():
             if pair in pair_to_index:
                 pair_to_index[pair] = pair_to_index[pair].union({index})
             else:
@@ -130,7 +131,7 @@ if __name__=="__main__":
     with open(out_path + dataset + '.merges.txt', 'w') as f:
         for byte_tuple in merges:
             string_tuple = tuple(str(byte) for byte in byte_tuple)
-            f.write(','.join(string_tuple) + '\n')
+            f.write('\t'.join(string_tuple) + '\n')
 
 class BPETokenizer:
     def __init__(self, vocab, merges, special_tokens=None):
@@ -238,5 +239,4 @@ class BPETokenizer:
         decoded_bytes = bytes()
         for x in ids:
             decoded_bytes += self.vocab[x]
-
         return decoded_bytes.decode("utf-8", errors='replace')

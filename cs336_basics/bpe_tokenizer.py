@@ -22,7 +22,7 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
     longest_token = max([len(sp) for sp in special_tokens_regex])
     pretokenized_counter = Counter()
     print("Pretokenizing: ")
-    for l in tqdm(corpus):
+    for l in corpus:
         pretokenized = re.findall(PAT, l)
         for w in pretokenized:
             if "<|endoftext|>" not in w:
@@ -81,13 +81,14 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
             for p, v in (original_counts - new_counts).items():
                 pairs_counter[p] -= v*c
                 if new_counts[p] == 0:
-                    pairs_to_tokens[p] -= {j}
+                    pairs_to_tokens[p].remove(j)
             for p, v in (new_counts - original_counts).items():
                 pairs_counter[p] += v*c
-                if p not in pairs_to_tokens:
+                """if p not in pairs_to_tokens:
                     pairs_to_tokens[p] = {j}
                 else:
-                    pairs_to_tokens[p] = pairs_to_tokens[p].union({j})
+                    pairs_to_tokens[p] = pairs_to_tokens[p].union({j})"""
+                pairs_to_tokens.setdefault(p, set()).add(j)
             token_splits[j] = new_token
             assert len(index_pairs) - n_merges == len(new_pairs1)
         i += 1
@@ -105,15 +106,15 @@ def get_pairs(pretokenized_counts):
     pair_counter = Counter()
     pair_to_index = dict()
     print("Counting Pairs")
-    for k, (index, count) in enumerate(tqdm(pretokenized_counts.items())):
+    for k, (index, count) in enumerate(pretokenized_counts.items()):
         index_pairs = [(index[i], index[i + 1]) for i in range(len(index) - 1)]
-        index_pairs_counted = Counter({k: count * c for k, c in Counter(index_pairs).items()})
-        pair_counter += index_pairs_counted
-        for pair in index_pairs_counted.keys():
-            if pair in pair_to_index:
-                pair_to_index[pair] = pair_to_index[pair].union({index})
-            else:
-                pair_to_index[pair] = {index}
+        index_pairs_counted = Counter(index_pairs)
+        
+        for pair, pair_count in index_pairs_counted.items():
+            pair_counter[pair] += pair_count * count
+            pair_to_index.setdefault(pair, set()).add(index)
+        if k % 10000 == 0:
+            print(k)
     return pair_counter, pair_to_index
 
 

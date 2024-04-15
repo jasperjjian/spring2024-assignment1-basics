@@ -42,10 +42,10 @@ class FeedForward(nn.Module):
 class Attention(nn.Module):
     def forward(self, k, q, v, mask=None, dpout=None):
         d_k = k.shape[-1]
-        print(k.shape)
+        """print(k.shape)
         print(q.shape)
         print(v.shape)
-        print(mask.shape)
+        print(mask.shape)"""
         q_times_k = (q @ torch.transpose(k, -1, -2)) / torch.sqrt(torch.tensor(d_k))
         
         if mask != None:
@@ -61,8 +61,42 @@ class Attention(nn.Module):
         return softmaxxed @ v
     
 class MultiHeadAttention(nn.Module):
-    def __init__(self):
+    def __init__(self, d_model, num_heads, attn_pdrop=None):
         super(MultiHeadAttention, self).__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.p_drop = attn_pdrop
+        self.d_key = d_model // num_heads
+        self.d_value = d_model // num_heads
         
-    def forward(self):
-        return
+        self.q = nn.Linear(self.d_model, self.d_key * self.num_heads)
+        self.k = nn.Linear(self.d_model, self.d_key * self.num_heads)
+        self.v = nn.Linear(self.d_model, self.d_value * self.num_heads)
+        self.w0 = nn.Linear(self.d_model, self.d_value * self.num_heads)
+        print(self.d_model)
+        # Define linear transformation for output after concatenation
+        
+
+
+    def forward(self, x):
+        print('hello')
+        print(self.q.data.shape)
+        seq_len = x.shape[-2]
+        lower_triangular = torch.triu(torch.empty(seq_len, seq_len), diagonal = 1)
+        lower_triangular = torch.where(lower_triangular == 0, False, True)
+        print(lower_triangular)
+        
+        print(lower_triangular.shape)
+        concat_kqv = torch.cat([self.k.data, self.q.data, self.v.data], dim=1)
+        print(concat_kqv.shape)
+
+        projected = x @ concat_kqv
+        print(projected.shape)
+        
+        attention = Attention()
+        k = projected[..., 0:(self.d_key * self.num_heads)]
+        q = projected[..., (self.d_key * self.num_heads):(2*self.d_key * self.num_heads)]
+        v = projected[..., (2*self.d_key * self.num_heads):]
+        attn_output = attention(k, q, v, mask=lower_triangular, dpout=self.p_drop)
+
+        return self.w0(attn_output)

@@ -141,7 +141,24 @@ def run_multihead_self_attention(
         torch.FloatTensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    q_heads_weights = torch.cat([weights[f'q_heads.{i}.weight'].t_() for i in range(num_heads)], dim=1)
+    k_heads_weights = torch.cat([weights[f'k_heads.{i}.weight'].t_() for i in range(num_heads)], dim=1)
+    v_heads_weights = torch.cat([weights[f'v_heads.{i}.weight'].t_() for i in range(num_heads)], dim=1)
+
+    print('trying')
+    print(weights["q_heads.1.weight"].shape)
+    print(q_heads_weights.shape)
+    print(weights["v_heads.1.weight"].shape)
+    print(weights["output_proj.weight"].shape)
+    print(in_features.shape)
+
+    multihead = transformer.MultiHeadAttention(d_model, num_heads)
+    multihead.q.data = q_heads_weights
+    multihead.k.data = k_heads_weights
+    multihead.v.data = v_heads_weights
+    multihead.w0.data = weights["output_proj.weight"]
+    
+    return multihead(in_features)
 
 
 def run_transformer_block(

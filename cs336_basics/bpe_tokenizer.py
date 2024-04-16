@@ -41,7 +41,7 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
     token_splits = dict(zip(pretokenized_counter.keys(), pretokenized_counter.keys()))
     print("Running stuff")
     i= 256+len(special_tokens)
-    progress_bar = tqdm(total=vocab_size-i)
+    #progress_bar = tqdm(total=vocab_size-i)
     while i < vocab_size:
         new_merge = i
         max_value = max(pairs_counter.values())
@@ -95,8 +95,8 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
         del pairs_counter[merge_vocab]
         if i % 1000 == 0:
             print(merges)
-        progress_bar.update(1)
-    progress_bar.close()
+        print(i)
+    #progress_bar.close()
     return vocab, merges
 
 def get_second_tuple_value(item):

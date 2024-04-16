@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import os
 from typing import IO, BinaryIO, Iterable, Optional, Type
-from cs336_basics import bpe_tokenizer
-from cs336_basics import transformer
+from cs336_basics import bpe_tokenizer, transformer, loss
 import numpy.typing as npt
 import torch
 
@@ -141,21 +140,20 @@ def run_multihead_self_attention(
         torch.FloatTensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    q_heads_weights = torch.cat([weights[f'q_heads.{i}.weight'].t_() for i in range(num_heads)], dim=1)
-    k_heads_weights = torch.cat([weights[f'k_heads.{i}.weight'].t_() for i in range(num_heads)], dim=1)
-    v_heads_weights = torch.cat([weights[f'v_heads.{i}.weight'].t_() for i in range(num_heads)], dim=1)
-
-    print('trying')
-    print(weights["q_heads.1.weight"].shape)
-    print(q_heads_weights.shape)
-    print(weights["v_heads.1.weight"].shape)
-    print(weights["output_proj.weight"].shape)
-    print(in_features.shape)
+    q_heads_weights = [weights[f'q_heads.{i}.weight'] for i in range(num_heads)]
+    k_heads_weights = [weights[f'k_heads.{i}.weight'] for i in range(num_heads)]
+    v_heads_weights = [weights[f'v_heads.{i}.weight'] for i in range(num_heads)]
 
     multihead = transformer.MultiHeadAttention(d_model, num_heads)
-    multihead.q.data = q_heads_weights
-    multihead.k.data = k_heads_weights
-    multihead.v.data = v_heads_weights
+    multihead.q.data = torch.cat([q_heads_weights[0], q_heads_weights[1]], dim=0)
+    multihead.k.data = torch.cat([k_heads_weights[0], k_heads_weights[1]], dim=0)
+    multihead.v.data = torch.cat([v_heads_weights[0], v_heads_weights[1]], dim=0)
+    """multihead.q1.data = q_heads_weights[0]
+    multihead.k1.data = k_heads_weights[0]
+    multihead.v1.data = v_heads_weights[0]
+    multihead.q2.data = q_heads_weights[1]
+    multihead.k2.data = k_heads_weights[1]
+    multihead.v2.data = v_heads_weights[1]"""
     multihead.w0.data = weights["output_proj.weight"]
     
     return multihead(in_features)
@@ -437,7 +435,10 @@ def run_cross_entropy(inputs: torch.FloatTensor, targets: torch.LongTensor):
     Returns:
         Tensor of shape () with the average cross-entropy loss across examples.
     """
-    raise NotImplementedError
+    cle = loss.CrossEntropyLoss()
+    print(inputs.shape)
+    print(targets.shape)
+    return cle(inputs, targets)
 
 
 def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float):

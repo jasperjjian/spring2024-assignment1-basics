@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class RMSNorm(nn.Module):
-    def __init__(self, d_model: int, eps: float):
+    def __init__(self, d_model, eps=1e-5):
         super(RMSNorm, self).__init__()
         self.dim = d_model
         self.eps = eps
@@ -115,3 +115,51 @@ class MultiHeadAttention(nn.Module):
         #attn_output = torch.cat([attn_output1, attn_output2], dim=-1)
         attn_output = torch.cat(attn_output, dim=-1)
         return attn_output @ self.w0.data.t_()
+    
+class PreNormBlock(nn.Module):
+    def __init__(self, d_model, num_heads, d_ff, attn_pdrop=None, residual_pdrop=None):
+        super(PreNormBlock, self).__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_ff = d_ff
+        self.attn_pdrop = attn_pdrop
+        self.residual_pdrop = residual_pdrop
+
+        """self.w1 = nn.Linear(self.d_model, self.d_ff, bias=False)
+        self.w2 = nn.Linear(self.d_ff, self.d_model, bias=False)
+        self.q = nn.Linear((self.d_model/self.num_heads)*self.num_heads, self.d_model, bias=False)
+        self.k = nn.Linear((self.d_model/self.num_heads)*self.num_heads, self.d_model, bias=False)
+        self.v = nn.Linear((self.d_model/self.num_heads)*self.num_heads, self.d_model, bias=False)"""
+        
+        self.norm1 = RMSNorm(self.d_model, 1e-05)
+        self.norm2 = RMSNorm(self.d_model, 1e-05)
+        self.multihead = MultiHeadAttention(self.d_model, self.num_heads, attn_pdrop=self.attn_pdrop)
+        self.ffn = FeedForward(self.d_model, self.d_ff)
+        if self.residual_pdrop != None:
+            self.residual_dropout = nn.Dropout(p=self.residual_pdrop, inplace=True)
+        """self.ffn.w1 = self.w1
+        self.ffn.w2 = self.w2
+        self.multihead.q = self.q
+        self.multihead.k = self.k
+        self.multihead.v = self.v"""
+
+    def forward(self, x):
+        residual_d_model = x
+
+        norm1_d_model = self.norm1(residual_d_model)
+        post_attention_d_model = self.multihead(norm1_d_model)
+        
+        if self.residual_dropout != None:
+            post_attention_d_model = self.residual_dropout(post_attention_d_model)
+        
+        residual_d_model = residual_d_model + post_attention_d_model
+
+        norm2_d_model = self.norm2(residual_d_model)
+        post_ffn_d_model = self.ffn(norm2_d_model)
+
+        if self.residual_dropout != None:
+            post_ffn_d_model = self.residual_dropout(post_ffn_d_model)
+
+        output = residual_d_model + post_ffn_d_model
+
+        return output

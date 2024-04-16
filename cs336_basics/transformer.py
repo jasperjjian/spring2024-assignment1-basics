@@ -51,14 +51,16 @@ class Attention(nn.Module):
         if mask != None:
             add_mask = torch.where(mask, torch.tensor(float('-inf')), torch.tensor(0))
             q_times_k += add_mask
+        #print(q_times_k == q_times_k)
         softmax = Softmax()
         softmaxxed = softmax(q_times_k, -1)
-
+        #print(softmaxxed)
         if dpout != None:
             dropout = nn.Dropout(p=dpout, inplace=True)
             softmaxxed = dropout(softmaxxed)
-        
-        return softmaxxed @ v
+        output = softmaxxed @ v
+        #print(output)
+        return output
     
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, num_heads, attn_pdrop=None):
@@ -72,49 +74,26 @@ class MultiHeadAttention(nn.Module):
         self.q = nn.Linear(self.d_key*self.num_heads, self.d_model, bias=False)
         self.k = nn.Linear(self.d_key*self.num_heads, self.d_model, bias=False)
         self.v = nn.Linear(self.d_value*self.num_heads, self.d_model, bias=False)
-        """self.q1 = nn.Linear(self.d_model, self.d_key, bias=False)
-        self.k1 = nn.Linear(self.d_model, self.d_key, bias=False)
-        self.v1 = nn.Linear(self.d_model, self.d_value, bias=False)
-        self.q2 = nn.Linear(self.d_model, self.d_key, bias=False)
-        self.k2 = nn.Linear(self.d_model, self.d_key, bias=False)
-        self.v2 = nn.Linear(self.d_model, self.d_value, bias=False)"""
+        
         self.w0 = nn.Linear(self.d_model, self.d_value*self.num_heads, bias=False)
-        #print(self.d_model)
-        # Define linear transformation for output after concatenation
-        
+
     def forward(self, x):
-        #print('hello')
-        #print(self.q.data.shape)
         seq_len = x.shape[-2]
-        lower_triangular = torch.triu(torch.empty(seq_len, seq_len), diagonal = 1)
-        lower_triangular = torch.where(lower_triangular == 0, False, True)
-        """print(lower_triangular)
-        print(lower_triangular.shape)"""
-        
+        lower_triangular = torch.triu(torch.ones(seq_len, seq_len), diagonal = 1).bool()
+        #lower_triangular = torch.where(lower_triangular == 0, False, True)
+        #print(lower_triangular)
         attention = Attention()
-        """k1 = x @ self.k1.data.t_()
-        q1 = x @ self.q1.data.t_()
-        v1 = x @ self.v1.data.t_()
-        attn_output1 = attention(k1, q1, v1, mask=lower_triangular, dpout=self.p_drop)
-
-        k2 = x @ self.k2.data.t_()
-        q2 = x @ self.q2.data.t_()
-        v2 = x @ self.v2.data.t_()
-        attn_output2 = attention(k2, q2, v2, mask=lower_triangular, dpout=self.p_drop)"""
-
-        k = x @ self.k.data.t_()
-        q = x @ self.q.data.t_()
-        v = x @ self.v.data.t_()
-
-        """print(torch.allclose(k, torch.cat([k1, k2], dim=-1)))
-        print(torch.allclose(q, torch.cat([q1, q2], dim=-1)))
-        print(torch.allclose(v, torch.cat([v1, v2], dim=-1)))"""
+        
+        k = x @ torch.t(self.k.weight.data)
+        q = x @ torch.t(self.q.weight.data)
+        v = x @ torch.t(self.v.weight.data)
+        
         attn_output = []
         for n in range(self.num_heads):
             attn_output.append(attention(k[...,n*self.d_key:(n+1)*self.d_key], q[...,n*self.d_key:(n+1)*self.d_key], v[...,n*self.d_key:(n+1)*self.d_key], mask=lower_triangular, dpout=self.p_drop))
-        #attn_output = torch.cat([attn_output1, attn_output2], dim=-1)
         attn_output = torch.cat(attn_output, dim=-1)
-        return attn_output @ self.w0.data.t_()
+        print(attn_output)
+        return attn_output @ torch.t(self.w0.weight.data)
     
 class PreNormBlock(nn.Module):
     def __init__(self, d_model, num_heads, d_ff, attn_pdrop=None, residual_pdrop=None):
@@ -124,31 +103,19 @@ class PreNormBlock(nn.Module):
         self.d_ff = d_ff
         self.attn_pdrop = attn_pdrop
         self.residual_pdrop = residual_pdrop
-
-        """self.w1 = nn.Linear(self.d_model, self.d_ff, bias=False)
-        self.w2 = nn.Linear(self.d_ff, self.d_model, bias=False)
-        self.q = nn.Linear((self.d_model/self.num_heads)*self.num_heads, self.d_model, bias=False)
-        self.k = nn.Linear((self.d_model/self.num_heads)*self.num_heads, self.d_model, bias=False)
-        self.v = nn.Linear((self.d_model/self.num_heads)*self.num_heads, self.d_model, bias=False)"""
         
         self.norm1 = RMSNorm(self.d_model, 1e-05)
         self.norm2 = RMSNorm(self.d_model, 1e-05)
-        self.multihead = MultiHeadAttention(self.d_model, self.num_heads, attn_pdrop=self.attn_pdrop)
+        self.multihead = MultiHeadAttention(self.d_model, self.num_heads, attn_pdrop=None)
         self.ffn = FeedForward(self.d_model, self.d_ff)
         if self.residual_pdrop != None:
             self.residual_dropout = nn.Dropout(p=self.residual_pdrop, inplace=True)
-        """self.ffn.w1 = self.w1
-        self.ffn.w2 = self.w2
-        self.multihead.q = self.q
-        self.multihead.k = self.k
-        self.multihead.v = self.v"""
 
     def forward(self, x):
         residual_d_model = x
 
         norm1_d_model = self.norm1(residual_d_model)
         post_attention_d_model = self.multihead(norm1_d_model)
-        
         if self.residual_dropout != None:
             post_attention_d_model = self.residual_dropout(post_attention_d_model)
         
@@ -156,10 +123,8 @@ class PreNormBlock(nn.Module):
 
         norm2_d_model = self.norm2(residual_d_model)
         post_ffn_d_model = self.ffn(norm2_d_model)
-
         if self.residual_dropout != None:
             post_ffn_d_model = self.residual_dropout(post_ffn_d_model)
-
+       
         output = residual_d_model + post_ffn_d_model
-
         return output

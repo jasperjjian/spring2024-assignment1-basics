@@ -1,5 +1,5 @@
 import regex as re
-from collections import Counter
+from collections import Counter, defaultdict
 import os
 import sys
 import pickle
@@ -141,7 +141,8 @@ class BPETokenizer:
         self.special_tokens = special_tokens
 
         if special_tokens != None:
-            self.regex_pattern = r"""'(?:[sdmt]|ll|ve|re)|""" + rf"|".join(["(?:" + re.escape(sp) + ")" for sp in self.special_tokens])  + r"""| ?\p{L}+| ?\p{N}+|""" + rf"|".join([" ?[^\s\p{L}\p{N}]+ *(?=" + re.escape(sp) + ")" for sp in self.special_tokens]) + r"""| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+            self.special_tokens = sorted(self.special_tokens, key=len, reverse=True)
+            self.regex_pattern = r"""'(?:[sdmt]|ll|ve|re)|""" + rf"|".join([" ?(?:" + re.escape(sp) + ")" for sp in self.special_tokens])  + r"""| ?\p{L}+| ?\p{N}+|""" + rf"|".join([" ?[^\s\p{L}\p{N}]+ *(?=" + re.escape(sp) + ")" for sp in self.special_tokens]) + r"""| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
         else:
             self.regex_pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
         
@@ -153,33 +154,43 @@ class BPETokenizer:
             vocab_list = json.load(f)
         with open(merges_filepath, 'r') as f:
             merges_list = f.read()
-        return BPETokenizer(vocab_list, merges_list, special_token=special_tokens)
+        return BPETokenizer(vocab_list, merges_list, special_tokens=special_tokens)
     
     def encode(self, text):
         PAT = self.regex_pattern
         pretokenized = re.findall(PAT, text)
+        print(pretokenized)
         pretokenized_encoded = []
         invert_vocab = {v : k for k, v in self.vocab.items()}
         
         for w in pretokenized:
-            if self.special_tokens == None:
-                encoded = (invert_vocab[bytes([char])] for char in list(w.encode('utf-8')))
-            elif w not in self.special_tokens:
-                encoded = (invert_vocab[char.encode('utf-8')] for char in w)
+            if self.special_tokens == None or w.strip() not in self.special_tokens:
+                encoded = tuple(invert_vocab[bytes([char])] for char in w.encode('utf-8'))
+                pretokenized_encoded.append(encoded)
             else:
-                encoded = (invert_vocab[w.encode("utf-8")])
-            pretokenized_encoded.append(encoded)
+                split = re.split(r"(\s)", w)
+                print(split)
+                for s in split:
+                    if s == " ":
+                        encoded = tuple([invert_vocab[s.encode('utf-8')]])
+                        pretokenized_encoded.append(encoded)
+                    elif s in self.special_tokens:
+                        encoded = tuple([invert_vocab[s.encode('utf-8')]])
+                        pretokenized_encoded.append(encoded)
+       
+        print(pretokenized_encoded)
         
         unique_tokens = list(set(pretokenized_encoded))
         pairs_to_tokens = self.get_pairs(unique_tokens)
+        print(pairs_to_tokens)
         token_splits = dict(zip(unique_tokens, unique_tokens))
 
-        for pair_bytes in self.merges:
+        for i, pair_bytes in enumerate(self.merges):
             pair_indices = (invert_vocab[pair_bytes[0]], invert_vocab[pair_bytes[1]])
             new_merge = invert_vocab[pair_bytes[0] + pair_bytes[1]]
-            
             if pair_indices in pairs_to_tokens:
-                for tok in pairs_to_tokens[pair_indices]:
+                matching_tokens = list(pairs_to_tokens[pair_indices])
+                for tok in matching_tokens:
                     t = token_splits[tok]
                     new_token = []
                     index_pairs = [(t[i], t[i + 1]) for i in range(len(t) - 1)]
@@ -200,7 +211,7 @@ class BPETokenizer:
                             new_token.append(pair[0])
                         k += 1
                     new_token = tuple(new_token)
-                    token_splits[t] = new_token
+                    token_splits[tok] = new_token
                     new_pairs = [(new_token[i], new_token[i + 1]) for i in range(len(new_token) - 1)]
                     
                     #Adding new pairs
@@ -213,6 +224,7 @@ class BPETokenizer:
                     # Removing old pairs
                     for p in set(index_pairs) - set(new_pairs):
                         pairs_to_tokens[p] -= {tok}
+                print(token_splits)
             
         tokenized = list()
         for w in pretokenized_encoded:
@@ -221,15 +233,16 @@ class BPETokenizer:
         return tokenized 
     
     def get_pairs(self, pretokenized_encoded):
-        pair_to_index = dict()
+        pair_to_index = defaultdict(set)
 
-        for encoding in enumerate(tqdm(pretokenized_encoded)):
+        for encoding in tqdm(pretokenized_encoded):
             index_pairs = [(encoding[j], encoding[j + 1]) for j in range(len(encoding) - 1)]
             for pair in index_pairs:
-                if pair in pair_to_index:
-                    pair_to_index[pair] = pair_to_index.union({encoding})
+                pair_to_index[pair].add(encoding)
+                """if pair in pair_to_index:
+                    pair_to_index[pair] = pair_to_index[pair].union({encoding})
                 else:
-                    pair_to_index[pair] = {encoding}
+                    pair_to_index[pair] = {encoding}"""
         return pair_to_index
 
     def encode_iterable(self, iterable):
@@ -240,4 +253,5 @@ class BPETokenizer:
         decoded_bytes = bytes()
         for x in ids:
             decoded_bytes += self.vocab[x]
+        print(decoded_bytes)
         return decoded_bytes.decode("utf-8", errors='replace')

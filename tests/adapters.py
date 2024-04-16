@@ -143,18 +143,25 @@ def run_multihead_self_attention(
     q_heads_weights = [weights[f'q_heads.{i}.weight'] for i in range(num_heads)]
     k_heads_weights = [weights[f'k_heads.{i}.weight'] for i in range(num_heads)]
     v_heads_weights = [weights[f'v_heads.{i}.weight'] for i in range(num_heads)]
+    
 
-    multihead = transformer.MultiHeadAttention(d_model, num_heads)
-    multihead.q.data = torch.cat([q_heads_weights[0], q_heads_weights[1]], dim=0)
-    multihead.k.data = torch.cat([k_heads_weights[0], k_heads_weights[1]], dim=0)
-    multihead.v.data = torch.cat([v_heads_weights[0], v_heads_weights[1]], dim=0)
+    multihead = transformer.MultiHeadAttention(d_model, num_heads, attn_pdrop=attn_pdrop)
+    """multihead.q.data = weights['attn.q_proj.weight']
+    multihead.k.data = weights['attn.k_proj.weight']
+    multihead.v.data = weights['attn.v_proj.weight']
+    multihead.w0.data = weights['attn.output_proj.weight']
+    """
+    multihead.q.weight.data = torch.cat([q_heads_weights[0], q_heads_weights[1]], dim=0)
+    multihead.k.weight.data = torch.cat([k_heads_weights[0], k_heads_weights[1]], dim=0)
+    multihead.v.weight.data = torch.cat([v_heads_weights[0], v_heads_weights[1]], dim=0)
+    multihead.w0.weight.data = weights["output_proj.weight"]
+
     """multihead.q1.data = q_heads_weights[0]
     multihead.k1.data = k_heads_weights[0]
     multihead.v1.data = v_heads_weights[0]
     multihead.q2.data = q_heads_weights[1]
     multihead.k2.data = k_heads_weights[1]
     multihead.v2.data = v_heads_weights[1]"""
-    multihead.w0.data = weights["output_proj.weight"]
     
     return multihead(in_features)
 
@@ -228,7 +235,21 @@ def run_transformer_block(
         FloatTensor of shape (batch_size, sequence_length, d_model) with the output of
         running the Transformer block on the input features.
     """
-    raise NotImplementedError
+    transformer_block = transformer.PreNormBlock(d_model, num_heads, d_ff, attn_pdrop=attn_pdrop, residual_pdrop=residual_pdrop)
+
+    transformer_block.multihead.q.weight.data = weights['attn.q_proj.weight']
+    """print(weights['attn.q_proj.weight'].dtype)
+    print(transformer_block.multihead.q.data.dtype)"""
+    transformer_block.multihead.k.weight.data = weights['attn.k_proj.weight']
+    transformer_block.multihead.v.weight.data = weights['attn.v_proj.weight']
+    transformer_block.multihead.w0.weight.data = weights['attn.output_proj.weight']
+
+    transformer_block.norm1.gain = torch.nn.Parameter(weights['ln1.weight'])
+    transformer_block.norm2.gain = torch.nn.Parameter(weights['ln2.weight'])
+
+    transformer_block.ffn.w1.weight.data = weights["ffn.w1.weight"]
+    transformer_block.ffn.w2.weight.data = weights["ffn.w2.weight"]
+    return transformer_block(in_features)
 
 
 def run_transformer_lm(

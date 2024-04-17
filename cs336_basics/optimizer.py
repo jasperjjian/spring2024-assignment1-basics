@@ -13,7 +13,7 @@ class AdamW(torch.optim.Optimizer):
         
         super().__init__(params, defaults)  
 
-    def step(self, closure: Optional[Callable] = None):
+    """def step(self, closure: Optional[Callable] = None):
         loss = None if closure is None else closure()
         for group in self.param_groups:
             lr = group["lr"]
@@ -38,8 +38,45 @@ class AdamW(torch.optim.Optimizer):
                 state["t"] = t + 1
                 state["m"] = m
                 state["v"] = v
+        return loss"""
+    def step(self, closure: Optional[Callable] = None):
+        loss = None if closure is None else closure()
+        for group in self.param_groups:
+            lr = group["lr"]
+            betas = group["betas"]
+            eps = group["eps"]
+            weight_decay = group["weight_decay"]
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+
+                state = self.state[p]
+                t = state.get("t", 1)
+
+                # Weight decay
+                p.data.mul_(1 - lr * weight_decay)
+
+                # Momentum
+                grad = p.grad.data
+                m = state.get("m", torch.zeros_like(p.data))
+                m = betas[0] * m + (1 - betas[0]) * grad
+                state["m"] = m
+
+                # RMSProp
+                v = state.get("v", torch.zeros_like(p.data))
+                v = betas[1] * v + (1 - betas[1]) * grad.pow(2)
+                state["v"] = v
+
+                # Bias correction
+                m_hat = m / (1 - betas[0] ** t)
+                v_hat = v / (1 - betas[1] ** t)
+
+                # Step
+                p.data.addcdiv_(-lr, m_hat, (v_hat.sqrt() + eps))
+
+                state["t"] = t + 1
         return loss
-    
+
     @classmethod
     def cosine_schedule(cls, it, max_learning_rate, min_learning_rate, warmup_iters, cosine_cycle_iters):
         if it < warmup_iters:

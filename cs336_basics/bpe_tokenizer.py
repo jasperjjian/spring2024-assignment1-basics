@@ -159,7 +159,7 @@ class BPETokenizer:
     def encode(self, text):
         PAT = self.regex_pattern
         pretokenized = re.finditer(PAT, text)
-        print(pretokenized)
+        #print(pretokenized)
         pretokenized_encoded = []
         invert_vocab = {v : k for k, v in self.vocab.items()}
         
@@ -170,7 +170,7 @@ class BPETokenizer:
                 pretokenized_encoded.append(encoded)
             else:
                 split = re.split(r"(\s)", w)
-                print(split)
+                #print(split)
                 for s in split:
                     if s == " ":
                         encoded = tuple([invert_vocab[s.encode('utf-8')]])
@@ -180,11 +180,11 @@ class BPETokenizer:
                         pretokenized_encoded.append(encoded)
         del pretokenized
         #print(pretokenized_encoded)
-        print('hello')
+        #print('hello')
         
         unique_tokens = list(set(pretokenized_encoded))
         pairs_to_tokens = self.get_pairs(unique_tokens)
-        print(pairs_to_tokens)
+        #print(pairs_to_tokens)
         token_splits = dict(zip(unique_tokens, unique_tokens))
 
         for i, pair_bytes in enumerate(self.merges):
@@ -218,15 +218,16 @@ class BPETokenizer:
                     
                     #Adding new pairs
                     for p in set(new_pairs) - set(index_pairs):
-                        if p not in pairs_to_tokens:
+                        pairs_to_tokens.setdefault(p, set()).add(tok)
+                        """if p not in pairs_to_tokens:
                             pairs_to_tokens[p] = {tok}
                         else:
-                            pairs_to_tokens[p] = pairs_to_tokens[p].union({tok})
+                            pairs_to_tokens[p] = pairs_to_tokens[p].union({tok})"""
 
                     # Removing old pairs
                     for p in set(index_pairs) - set(new_pairs):
                         pairs_to_tokens[p] -= {tok}
-                print(token_splits)
+                #print(token_splits)
             
         tokenized = list()
         for w in pretokenized_encoded:
@@ -236,7 +237,6 @@ class BPETokenizer:
     
     def get_pairs(self, pretokenized_encoded):
         pair_to_index = defaultdict(set)
-
         for encoding in tqdm(pretokenized_encoded):
             index_pairs = [(encoding[j], encoding[j + 1]) for j in range(len(encoding) - 1)]
             for pair in index_pairs:

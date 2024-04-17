@@ -80,8 +80,6 @@ class MultiHeadAttention(nn.Module):
     def forward(self, x):
         seq_len = x.shape[-2]
         lower_triangular = torch.triu(torch.ones(seq_len, seq_len), diagonal = 1).bool()
-        #lower_triangular = torch.where(lower_triangular == 0, False, True)
-        #print(lower_triangular)
         attention = Attention()
         
         k = x @ torch.t(self.k.weight.data)
@@ -92,7 +90,7 @@ class MultiHeadAttention(nn.Module):
         for n in range(self.num_heads):
             attn_output.append(attention(k[...,n*self.d_key:(n+1)*self.d_key], q[...,n*self.d_key:(n+1)*self.d_key], v[...,n*self.d_key:(n+1)*self.d_key], mask=lower_triangular, dpout=self.p_drop))
         attn_output = torch.cat(attn_output, dim=-1)
-        print(attn_output)
+        #print(attn_output)
         return attn_output @ torch.t(self.w0.weight.data)
     
 class PreNormBlock(nn.Module):
@@ -127,4 +125,44 @@ class PreNormBlock(nn.Module):
             post_ffn_d_model = self.residual_dropout(post_ffn_d_model)
        
         output = residual_d_model + post_ffn_d_model
+        return output
+
+class Transformer(nn.Module):
+    def __init__(self, vocab_size, context_length, d_model, num_layers, num_heads, d_ff, attn_pdrop=None, residual_pdrop=None):
+        super(Transformer, self).__init__()
+        assert d_model % num_heads == 0
+        self.vocab_size = vocab_size
+        self.context_length = context_length
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_ff = d_ff
+        self.attn_pdrop = attn_pdrop
+        self.residual_pdrop = residual_pdrop
+        self.num_layers = num_layers
+
+        self.final_norm = RMSNorm(self.d_model, 1e-05)
+        self.blocks = nn.ModuleList([PreNormBlock(self.d_model, self.num_heads, self.d_ff, attn_pdrop=attn_pdrop, residual_pdrop=self.residual_pdrop) for _ in range(self.num_layers)])
+        
+        if self.residual_pdrop != None and self.residual_pdrop != 0:
+            self.initial_dropout = nn.Dropout(p=self.residual_pdrop, inplace=True)
+
+        self.vocab_embedding = nn.Embedding(self.vocab_size, self.d_model)
+        self.positional_embedding = nn.Embedding(self.context_length, self.d_model)
+        self.output_linear = nn.Linear(self.d_model, self.d_model, bias=False)
+
+    def forward(self, x):
+        tok_embedding_d_model = self.vocab_embedding(x)
+        context_vector = torch.arange(x.size(-1)) % self.context_length
+        pos_embedding_d_model = self.positional_embedding(context_vector)
+        x_embedded_d_model = tok_embedding_d_model + pos_embedding_d_model
+
+        if self.residual_pdrop != None and self.residual_pdrop != 0:
+            x_embedded_d_model = self.initial_dropout(x_embedded_d_model)
+        
+        for attn in self.blocks:
+            x_embedded_d_model = attn(x_embedded_d_model)
+
+        output = self.final_norm(x_embedded_d_model)
+        output = self.output_linear(output)
+        
         return output

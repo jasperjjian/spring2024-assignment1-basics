@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from typing import IO, BinaryIO, Iterable, Optional, Type
-from cs336_basics import bpe_tokenizer, transformer, loss
+from cs336_basics import bpe_tokenizer, transformer, loss, optimizer, utils
 import numpy.typing as npt
 import torch
 
@@ -342,7 +342,28 @@ def run_transformer_lm(
         FloatTensor of shape (batch size, sequence_length, vocab_size) with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    model = transformer.Transformer(vocab_size, context_length, d_model, num_layers, num_heads, d_ff, attn_pdrop=attn_pdrop, residual_pdrop=residual_pdrop)
+    model.vocab_embedding.weight.data = weights['token_embeddings.weight']
+    model.positional_embedding.weight.data = weights['position_embeddings.weight']
+    model.final_norm.gain = torch.nn.Parameter(weights['ln_final.weight'])
+    model.output_linear.weight.data = weights['lm_head.weight']
+
+    for i in range(num_layers):
+        model.blocks[i].multihead.q.weight.data = weights[f'layers.{i}.attn.q_proj.weight']
+        model.blocks[i].multihead.k.weight.data = weights[f'layers.{i}.attn.k_proj.weight']
+        model.blocks[i].multihead.v.weight.data = weights[f'layers.{i}.attn.v_proj.weight']
+        model.blocks[i].multihead.w0.weight.data = weights[f'layers.{i}.attn.output_proj.weight']
+        model.blocks[i].norm1.gain = torch.nn.Parameter(weights[f'layers.{i}.ln1.weight'])
+        model.blocks[i].norm2.gain = torch.nn.Parameter(weights[f'layers.{i}.ln2.weight'])
+        model.blocks[i].ffn.w1.weight.data = weights[f"layers.{i}.ffn.w1.weight"]
+        model.blocks[i].ffn.w2.weight.data = weights[f"layers.{i}.ffn.w2.weight"]
+    #print(torch.max(in_indices))
+    #print(model.blocks[1].multihead.q.weight.data == weights[f'layers.1.attn.q_proj.weight'] )
+    #print(in_indices.shape)
+    #print(model.positional_embedding.weight.data.shape)
+    #print(model.vocab_embedding(in_indices).shape)
+    print(model.parameters)
+    return model(in_indices)
 
 
 def run_rmsnorm(
@@ -420,7 +441,7 @@ def run_get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
-    raise NotImplementedError
+    return utils.dataloader(dataset, batch_size, context_length, device)
 
 
 def run_softmax(in_features: torch.FloatTensor, dim: int) -> torch.FloatTensor:
@@ -474,14 +495,14 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
     Returns:
         None
     """
-    raise NotImplementedError
+    return optimizer.AdamW.gradient_clipping(parameters, max_l2_norm)
 
 
 def get_adamw_cls() -> Type[torch.optim.Optimizer]:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    raise NotImplementedError
+    return optimizer.AdamW
 
 
 def run_get_lr_cosine_schedule(
@@ -514,7 +535,7 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    raise NotImplementedError
+    return optimizer.AdamW.cosine_schedule(it, max_learning_rate, min_learning_rate, warmup_iters, cosine_cycle_iters)
 
 
 def run_save_checkpoint(
@@ -537,7 +558,8 @@ def run_save_checkpoint(
         out: str | os.PathLike | BinaryIO | IO[bytes]
             Path or file-like object to serialize the model, optimizer, and iteration to.
     """
-    raise NotImplementedError
+    utils.save_checkpoint(model, optimizer, iteration, out)
+    return 
 
 
 def run_load_checkpoint(
@@ -561,7 +583,7 @@ def run_load_checkpoint(
     Returns:
         int, the previously-serialized number of iterations.
     """
-    raise NotImplementedError
+    return utils.load_checkpoint(src, model, optimizer)
 
 
 def get_tokenizer(

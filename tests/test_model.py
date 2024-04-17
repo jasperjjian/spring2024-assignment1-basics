@@ -122,6 +122,8 @@ def test_transformer_lm():
         weights=reference_weights,
         in_indices=in_indices,
     )
+    #print(actual_output.shape)
+    #print(expected_output.shape)
     numpy.testing.assert_allclose(
         actual_output.detach().numpy(), expected_output.detach().numpy(), atol=1e-4
     )

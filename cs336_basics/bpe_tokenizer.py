@@ -158,12 +158,13 @@ class BPETokenizer:
     
     def encode(self, text):
         PAT = self.regex_pattern
-        pretokenized = re.findall(PAT, text)
+        pretokenized = re.finditer(PAT, text)
         print(pretokenized)
         pretokenized_encoded = []
         invert_vocab = {v : k for k, v in self.vocab.items()}
         
-        for w in pretokenized:
+        for match in tqdm(pretokenized):
+            w = match.group(0)
             if self.special_tokens == None or w.strip() not in self.special_tokens:
                 encoded = tuple(invert_vocab[bytes([char])] for char in w.encode('utf-8'))
                 pretokenized_encoded.append(encoded)
@@ -177,8 +178,9 @@ class BPETokenizer:
                     elif s in self.special_tokens:
                         encoded = tuple([invert_vocab[s.encode('utf-8')]])
                         pretokenized_encoded.append(encoded)
-       
-        print(pretokenized_encoded)
+        del pretokenized
+        #print(pretokenized_encoded)
+        print('hello')
         
         unique_tokens = list(set(pretokenized_encoded))
         pairs_to_tokens = self.get_pairs(unique_tokens)
@@ -229,7 +231,7 @@ class BPETokenizer:
         tokenized = list()
         for w in pretokenized_encoded:
             tokenized += token_splits[w]
-        print(tokenized)
+        #print(tokenized)
         return tokenized 
     
     def get_pairs(self, pretokenized_encoded):
@@ -246,8 +248,9 @@ class BPETokenizer:
         return pair_to_index
 
     def encode_iterable(self, iterable):
-
-        raise NotImplementedError
+        for str in iterable:
+            encoded = self.encode(str)
+            yield from encoded
     
     def decode(self, ids):
         decoded_bytes = bytes()

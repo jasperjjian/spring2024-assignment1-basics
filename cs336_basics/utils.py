@@ -10,11 +10,11 @@ def dataloader(dataset, batch_size, context_length, device):
     sample_indices = np.array([np.arange(x, x+context_length) for x in sample])
     offset_indices = np.array([np.arange(x+1, x+context_length+1) for x in sample])
 
-    sampled_dataset = np.take(dataset, sample_indices)
-    sampled_offset = np.take(dataset, offset_indices)
+    sampled_dataset = np.take(dataset, sample_indices).astype(np.int16)
+    sampled_offset = np.take(dataset, offset_indices).astype(np.int16)
     
-    sampled_dataset = torch.tensor(sampled_dataset).to(device)
-    sampled_offset = torch.tensor(sampled_offset).to(device)
+    sampled_dataset = torch.tensor(sampled_dataset, dtype=torch.long).to(device)
+    sampled_offset = torch.tensor(sampled_offset, dtype=torch.long).to(device)
 
     return sampled_dataset, sampled_offset
 

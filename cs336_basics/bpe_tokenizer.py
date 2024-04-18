@@ -6,7 +6,7 @@ import pickle
 import gc
 import json
 from tqdm import tqdm
-
+import time
 
 def train_tokenizer(input_path, vocab_size, special_tokens):
     merges = []
@@ -22,6 +22,7 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
     longest_token = max([len(sp) for sp in special_tokens_regex])
     pretokenized_counter = Counter()
     print("Pretokenizing: ")
+    start_time = time.time()
     for l in corpus:
         pretokenized = re.findall(PAT, l)
         for w in pretokenized:
@@ -30,6 +31,7 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
             else:
                 encoded = tuple([256])
             pretokenized_counter[encoded] += 1
+    pretokenize_time = time.time() - start_time
     del corpus
     gc.collect()
     #print("Counting")
@@ -37,11 +39,14 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
     gc.collect()
     """pretokenized = [tuple(w.encode('utf-8')) if "<|endoftext|>" not in w else tuple([256]) for w in pretokenized]
     pretokenized_counter = Counter(pretokenized)"""
+    start_time = time.time()
     pairs_counter, pairs_to_tokens = get_pairs(pretokenized_counter)
+    pair_time = time.time() - start_time
     token_splits = dict(zip(pretokenized_counter.keys(), pretokenized_counter.keys()))
     print("Running stuff")
     i= 256+len(special_tokens)
     #progress_bar = tqdm(total=vocab_size-i)
+    start_time = time.time()
     while i < vocab_size:
         new_merge = i
         max_value = max(pairs_counter.values())
@@ -93,10 +98,14 @@ def train_tokenizer(input_path, vocab_size, special_tokens):
             assert len(index_pairs) - n_merges == len(new_pairs1)
         i += 1
         del pairs_counter[merge_vocab]
-        if i % 1000 == 0:
+        """if i % 1000 == 0:
             print(merges)
-        print(i)
+        print(i)"""
+    end_time = time.time() - start_time
     #progress_bar.close()
+    print(f"Pretokenizer time: {pretokenize_time}")
+    print(f"Pair time: {pair_time}")
+    print(f"Merge time: {end_time}")
     return vocab, merges
 
 def get_second_tuple_value(item):
@@ -125,14 +134,15 @@ if __name__=="__main__":
     dataset = sys.argv[4]
     special_tokens = ['<|endoftext|>']
     vocab, merges = train_tokenizer(file_path, vocab_size, special_tokens)
+    
     #print(vocab)
     #print(merges)
-    with open(out_path + dataset + '.vocab', 'wb') as f:
+    """with open(out_path + dataset + '.vocab', 'wb') as f:
         pickle.dump(vocab, f)
     with open(out_path + dataset + '.merges.txt', 'w') as f:
         for byte_tuple in merges:
             string_tuple = tuple(str(byte) for byte in byte_tuple)
-            f.write('\t'.join(string_tuple) + '\n')
+            f.write('\t'.join(string_tuple) + '\n')"""
 
 class BPETokenizer:
     def __init__(self, vocab, merges, special_tokens=None):

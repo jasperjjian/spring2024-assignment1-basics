@@ -76,10 +76,11 @@ class MultiHeadAttention(nn.Module):
         self.v = nn.Linear(self.d_value*self.num_heads, self.d_model, bias=False)
         
         self.w0 = nn.Linear(self.d_model, self.d_value*self.num_heads, bias=False)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def forward(self, x):
         seq_len = x.shape[-2]
-        lower_triangular = torch.triu(torch.ones(seq_len, seq_len), diagonal = 1).bool()
+        lower_triangular = torch.triu(torch.ones(seq_len, seq_len), diagonal = 1).bool().to(self.device)
         attention = Attention()
         
         k = x @ torch.t(self.k.weight.data)
@@ -108,6 +109,7 @@ class PreNormBlock(nn.Module):
         self.ffn = FeedForward(self.d_model, self.d_ff)
         if self.residual_pdrop != None:
             self.residual_dropout = nn.Dropout(p=self.residual_pdrop, inplace=True)
+        
 
     def forward(self, x):
         residual_d_model = x
@@ -148,11 +150,11 @@ class Transformer(nn.Module):
 
         self.vocab_embedding = nn.Embedding(self.vocab_size, self.d_model)
         self.positional_embedding = nn.Embedding(self.context_length, self.d_model)
-        self.output_linear = nn.Linear(self.d_model, self.d_model, bias=False)
-
+        self.output_linear = nn.Linear(self.d_model, self.vocab_size, bias=False)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     def forward(self, x):
         tok_embedding_d_model = self.vocab_embedding(x)
-        context_vector = torch.arange(x.size(-1)) % self.context_length
+        context_vector = torch.arange(x.size(-1)).to(self.device) % self.context_length
         pos_embedding_d_model = self.positional_embedding(context_vector)
         x_embedded_d_model = tok_embedding_d_model + pos_embedding_d_model
 
